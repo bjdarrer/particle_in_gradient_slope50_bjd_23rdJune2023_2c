@@ -1,0 +1,344 @@
+(*Model G Particle*)(*Model G Particle Formation
+Author:Matt Pulver<matt@blue-science.org
+2010-2013 This file verifies the mathematics and generates some of \
+the images found in the paper "Stationary Dissipative Solitons of \
+Model G" by Matt Pulver and Paul LaViolette published in \
+International Journal of General Systems 42(5) July 2013 download PDF \
+from 
+http://starburstfound.org/downloads/physics/model_G.html \
+Requirements: Mathematica 9.0
+Additions to code here by Brendan Darrer 1 June 2023.*)
+
+Clear["Global`*"]
+myname = "model_g_in_gradient_slope50_bjd_2c"
+
+(* Off[General::stop] *)
+
+Needs["PlotLegends`"]
+Needs["VectorAnalysis`"] (* Laplacian *)
+
+SetCoordinates[Cartesian[x, y, z]];
+
+bell[s_, x_] := Exp[-(x/s)^2/2]
+dbell[n_, s_, x_] := Evaluate[D[bell[s, x]/(n - 1)!!, {x, n}]]
+bell2d[s_, x_, y_] := Exp[-(x^2 + y^2)/s^2/2]
+bell3d[s_, x_, y_, z_] := Exp[-(x^2 + y^2 + z^2)/s^2/2]
+
+(*
+       A --k1--> G            G --k1m--> A
+       G --k2--> X            X --k2m--> G
+   B + X --k3--> Y + Z    Y + Z --k3m--> B + X
+  2X + Y --k4--> 3X          3X --k4m--> 2X + Y
+       X --k5--> Om          Om --k5m--> X
+*)
+
+rediff0 = {
+     -ddtdim G + Dg lapdim G - V gradim G - (k1m + k2) G + k2m X + 
+   k1 A,
+     -ddtdim X + Dx lapdim X - V gradim X + 
+   k2 G - (k2m + k3 B + k5) X + k3m Z Y
+         - k4m X^3 + k4 X^2 Y + k5m Om,
+     -ddtdim Y + Dy lapdim Y - V gradim Y + k3 B X - k3m Z Y
+         + k4m X^3 - k4 X^2 Y
+  }
+
+rediff1 = 
+ rediff0 /. { ddtdim -> ddt / tc, lapdim -> laplacian / lc^2,
+      gradim -> grad / lc, G -> Gc Gb, X -> Xc Xb, Y -> Yc Yb }
+
+rediff1 = Collect[rediff1, {Gb, Xb, Yb}, Simplify]
+
+(* Priorities for these substitutions are:
+1. Set coefficients of time derivatives to 1 for phase space \
+analyzation.
+2. All named coefficients must remain bounded if any of the reverse
+   kinetic constants k\[Minus]i go to zero. *)
+
+(* Set time derivative coefficients to 1 *)
+rediff2 = { 
+  rediff1[[1]] tc/Gc,
+    rediff1[[2]] tc/Xc,
+    rediff1[[3]] tc/Yc }
+rediff2 = 
+ Collect[rediff2, {Gb, Xb, Yb, ddt, laplacian, grad}, Simplify]
+
+(*
+rediff3 = rediff2 //. {s
+  tc -> 1/(k4 Xc Yc),  (*  Xb^2 Yb in X *)
+  Xc -> Yc,            (* \
+-Xb^2 Yb in Y *)
+  Yc -> Sqrt[(k2m+kModel G\[LongDash]1d soliton in a \
+G gradient,with G slope=\[Minus]1/50l5)/k4], (* Xb in Y, set to q *)
+ \
+ Gc -> (k2m+k5)^(3/2)/(k2 Sqrt[k4]), (* Gb in X *)
+  lc -> \
+Sqrt[Dx/(k2m+k5)] (* laplacian Xb in X *)
+}
+*)
+
+rediff3 = rediff2 //. {
+     tc -> 1/(k4 Xc Yc),  (*  Xb^2 Yb in X *)
+     
+   Xc -> Yc,            (* -Xb^2 Yb in Y *)
+     
+   Gc -> Xc,            (* v*Grad[C] for C = G, X, Y *)
+     
+   Yc -> Sqrt[(k2m + k5)/k4], (* Xb in Y, set to q *)
+     
+   lc -> Sqrt[Dg/(k2m + k5)]  (* laplacian Gb in G *)
+   }
+
+rediff3 = Collect[rediff3, {Gb, Xb, Yb, ddt, laplacian, grad},
+     Simplify[#, Assumptions -> {0 < k4, 0 < Dg}] &]
+
+rediff3test = rediff2 //. {
+     tc -> 1/(k2m + k5),  (*  Xb^2 Yb in X *)
+     
+   Xc -> Sqrt[(k2m + k5)/k4], (* -Xb^2 Yb in Y *)
+     
+   Yc -> Sqrt[(k2m + k5)/k4], (* Xb in Y, set to q *)
+     
+   Gc -> Sqrt[(k2m + k5)/k4], (* v*Grad[C] for C = G, X, Y *)
+     
+   lc -> Sqrt[Dg/(k2m + k5)] (* laplacian Gb in G *)
+   }
+rediff3test = 
+ Collect[rediff3, {Gb, Xb, Yb, ddt, laplacian, grad}, 
+  Simplify[#, Assumptions -> {0 < k4, 0 < Dg}] &]
+Print["Is rediff3 == rediff3test?"];
+Simplify[ rediff3 == rediff3test ]
+
+nondimensionalized = {
+    -ddt Gb +   laplacian Gb - v grad Gb - q Gb +    r  Xb        + 
+   a,
+    -ddt Xb + g laplacian Xb - v grad Xb + p Gb - (1 + b) Xb + u Yb + w
+        - s Xb^3 + Xb^2 Yb,
+    -ddt Yb + h laplacian Yb - v grad Yb        +    b  Xb - u Yb
+        + s Xb^3 - Xb^2 Yb }
+
+redifftest = nondimensionalized /. {
+     a -> k1 Sqrt[k4]/(k2m + k5)^(3/2) A, (* 
+   constant term in G *)
+     b -> k3/(k2m + k5) B, (* -(1+b)Xb in X, 
+   b Xb in Y *)
+     g -> Dx/Dg, (* laplacian Xb in X *)
+     
+   h -> Dy/Dg, (* laplacian Yb in Y *)
+     p -> k2/(k2m + k5), (* 
+   Gb in X *)
+     q -> (k1m + k2)/(k2m + k5), (* -Gb in G *)
+     
+   r -> k2m/(k2m + k5), (* Xb in G *)
+     
+   s -> k4m/k4, (* (-/+)Xb^3 in (X/Y) *)
+     
+   u -> k3m/(k2m + k5) Z, (* (+/-)Yb in (X/Y) *)
+     
+   v -> V / Sqrt[Dg (k2m + k5)], (* -Grad[C] for C = G, X, Y *)
+     
+   w -> Sqrt[k4] k5m/(k2m + k5)^(3/2) Om } (* constant term in X *)
+
+Print["Is rediff3 == redifftest?"];
+Simplify[ rediff3 == redifftest, 
+ Assumptions -> {0 < Dg, 0 < k2m + k5} ]
+
+Print["To return to dimensionalized system:"];
+Simplify[Solve[ {
+      tc == 1/(k2m + k5),  (*  Xb^2 Yb in X *)
+    (*Xc == Sqrt[(k2m+
+    k5)/k4], (* -Xb^2 Yb in Y *) *)
+    (*Yc == Sqrt[(k2m+k5)/k4], (* 
+    Xb in Y, set to q *) *)
+      Gc == Sqrt[(k2m + k5)/k4], (* v*
+    Grad[C] for C = G, X, Y *)
+      lc == Sqrt[Dg/(k2m + k5)], (* 
+    laplacian Gb in G *)
+      a == k1 Sqrt[k4]/(k2m + k5)^(3/2) A, (* 
+    constant term in G *)
+      b == k3/(k2m + k5) B, (* -(1+
+    b)Xb in X, b Xb in Y *)
+      g == Dx/Dg, (* 
+    laplacian Xb in X *)
+      h == Dy/Dg, (* 
+    laplacian Yb in Y *)
+      p == k2/(k2m + k5), (* 
+    Gb in X *)
+      q == (k1m + k2)/(k2m + k5), (* -Gb in G *)
+      
+    r == k2m/(k2m + k5), (* Xb in G *)
+      
+    s == k4m/k4, (* (-/+)Xb^3 in (X/Y) *)
+      
+    u == k3m/(k2m + k5) Z, (* (+/-)Yb in (X/Y) *)
+      
+    v == V / Sqrt[Dg (k2m + k5)], (* -Grad[C] for C = G, X, 
+    Y *)
+      w == Sqrt[k4] k5m/(k2m + k5)^(3/2) Om (* 
+    constant term in X *)
+      }, { Dg, Dx, Dy, A, B, V, Z, Om, k1, 
+    k2, k3, k4, k5, k1m, k2m, k3m, k4m, k5m }
+   ][[2]], Assumptions -> {0 < lc, 0 < tc}]
+
+(* G-Independence *)
+gbsub = 
+ Solve[ 0 == nondimensionalized[[2]] + nondimensionalized[[3]], Gb ][[
+  1]]
+xy1 = nondimensionalized[[1]] /. gbsub
+Print["G-Independence:"];
+Collect[ -xy1, {Xb, Yb}, Collect[#, {ddt, laplacian, grad}] & ]
+
+(* Homogeneous steady state solution *)
+Clear[Gb0, Xb0, Yb0];
+hss = nondimensionalized /. { ddt -> 0, laplacian -> 0, grad -> 0 }
+Yb0 = Yb /. Solve[0 == (hss[[3]] /. Xb -> Xb0), Yb][[1]]
+{ Gb0, Xb0 } = { Gb, Xb } /. 
+  Solve[Map[0 == # &, hss], {Gb, Xb}, Yb][[1]]
+
+Gb0 = (   a + r w ) / ( q - r p );
+Xb0 = ( p a + q w ) / ( q - r p );
+(* Yb0 = ( s Xb0^2 + b ) Xb0 / ( Xb0^2 + u ); *)
+
+Yb0 = ( p a + q w ) ( s ( p a + q w )^2 + b ( q - r p )^2 ) /
+        ( (   q - r p ) (   ( p a + q w )^2 + u ( q - r p )^2 ) );
+Print[ "Gb0 = ", Gb0 ];
+Print[ "Xb0 = ", Xb0 ];
+Print[ "Yb0 = ", Yb0 ];
+Print[ "Confirm that these values are correct:" ];
+Simplify[ {0, 0, 0} == hss /. { Gb -> Gb0, Xb -> Xb0, Yb -> Yb0 } ]
+
+potentials = { -ddt pGb +   laplacian pGb - v grad pGb - q pGb + r pXb,
+    -ddt pXb + g laplacian pXb - v grad pXb + p pGb - (1 + b) pXb + 
+   u pYb -
+        s ( (pXb + Xb0)^3 - Xb0^3 ) + ( (pXb + Xb0)^2 (pYb + Yb0) - 
+     Xb0^2 Yb0 ),
+    -ddt pYb + h laplacian pYb - v grad pYb              + b  pXb - 
+   u pYb +
+        s ( (pXb + Xb0)^3 - Xb0^3 ) - ( (pXb + Xb0)^2 (pYb + Yb0) - 
+     Xb0^2 Yb0 ) }
+
+Print[ "Potentials equations are equivalent to nondimensionalized \
+equations:" ];
+Simplify[ potentials == nondimensionalized /. {
+     ddt Gb -> ddt pGb, laplacian Gb -> laplacian pGb, 
+   grad Gb -> grad pGb,
+     ddt Xb -> ddt pXb, laplacian Xb -> laplacian pXb, 
+   grad Xb -> grad pXb,
+     ddt Yb -> ddt pYb, laplacian Yb -> laplacian pYb, 
+   grad Yb -> grad pYb,
+     Gb -> pGb + Gb0, Xb -> pXb + Xb0, Yb -> pYb + Yb0 } ]
+
+(* G-Independence *)
+pGbsub = 
+ Collect[Solve[0 == potentials[[2]] + potentials[[3]], pGb][[
+   1]], {pXb, pYb}]
+pXY = Collect[ Expand[-p*potentials[[1]] /. pGbsub], {pXb, pYb},
+     Collect[#, {ddt, laplacian, grad}] & ]
+pXYlatex = ( ddt^2
+      + 2 v ddt grad
+      + (v grad)^2
+      - (1 + q g) laplacian
+      + g laplacian^2
+      + q - r p
+      + (1 + q) ddt
+      + (1 + q) v grad
+      - (1 + g) ddt laplacian
+      - (1 + g) v grad laplacian
+     ) pXb + (
+       ddt^2
+      + 2 v ddt grad
+      + (v grad)^2
+      - q h laplacian
+      + h laplacian^2
+      + q ddt
+      + q v grad
+      - (1 + h) ddt laplacian
+      - (1 + h) v grad laplacian
+     ) pYb;
+Print["Verify pXY:"];
+Simplify[ pXY == pXYlatex ]
+
+(* 1D PDEs *)
+gradient = -1/50;
+L = 40;  (*BJD 21.6.2023 was 10*)
+T = 1000; (*BJD 21.6.2023 was 500*)
+\
+duration = 20; (* seconds *) (*BJD 21.6.2023 was 10*)
+fps = 5(*16;*) (* \
+frames per second *)
+(* subs = {a -> 14, b -> 33, g -> 1, h -> 12, p -> \
+1, q -> 1, 
+   r -> 0.1, s -> 0.02, u -> 0.01, v -> {0,0,0}, w -> 0.01 } *)
+subs \
+= {a -> 14, b -> 29, g -> 1, h -> 12, p -> 1, q -> 1, 
+     r -> 1/10, s -> 0, u -> 0, v -> {0, 0, 0}, w -> 0 }
+(*Astep[x_,t_] := bell[1, x] (1 + Erf[100 (50 - t)])/2;*)
+
+Astep[x_, t_] := -bell[1, x] bell[10, t - 10] + gradient x
+pdes0 = potentials /. {
+    (*a -> a(1-0.5 bell[5,x]),*)
+    (*a -> a Cosh[Sqrt[a/Da]x] / 
+    Cosh[Sqrt[a/Da]xmax],*)
+    (*a -> a Astep[x,t],*)
+      
+    pGb -> pGb[x, t], pXb -> pXb[x, t], pYb -> pYb[x, t],
+      ddt pGb -> D[pGb[x, t], t], 
+    laplacian pGb -> Laplacian[pGb[x, t]],
+      v grad pGb -> v.Grad[pGb[x, t]],
+      ddt pXb -> D[pXb[x, t], t], 
+    laplacian pXb -> Laplacian[pXb[x, t]],
+      v grad pXb -> v.Grad[pXb[x, t]],
+      ddt pYb -> D[pYb[x, t], t], 
+    laplacian pYb -> Laplacian[pYb[x, t]],
+      v grad pYb -> v.Grad[pYb[x, t]] };
+pdes1 = { pdes0[[1]] + Astep[x, t], pdes0[[2]], pdes0[[3]] }
+pdes2 = Map[ 0 == # &, 
+  pdes1 ] (*/. { v -> UnitStep[t-50]{1/2,0,0} }*)
+pdes3 = 
+ Join[ pdes2, {
+      pGb[-L/2, t] == pGb[L/2, t],
+      pXb[-L/2, t] == pXb[L/2, t],
+      pYb[-L/2, t] == pYb[L/2, t],
+      pGb[x, 0] == 0, pXb[x, 0] == 0, pYb[x, 0] == 0
+      } ] /. subs
+ndsolve = NDSolve[ pdes3, {pGb, pXb, pYb}, {x, -L/2, L/2}, {t, 0, T},
+    MaxStepSize -> 3/100, MaxSteps -> 75000 ]
+
+zoom = 1;
+plotscale = 1; (* 1 for 1280x720, .625 for 800x450 *)
+
+frame[t_] := Plot[
+     Evaluate[
+   Flatten[ { pGb[x, t], pXb[x, t]/10, pYb[x, t] } /. ndsolve ]],
+     {x, -L/2/zoom, L/2/zoom},
+     Frame -> True,
+     FrameLabel -> { Style["Space", plotscale 32], Style[ StringForm[
+            "``Concentration Potentials", Style["G, X, Y ", Italic]], 
+     plotscale 32]},
+     ImageSize -> plotscale { 1280, 720 }, (* YouTube HD *)
+     
+  LegendPosition -> { 2, 1 }/4,
+     LegendShadow -> { 1, -1 }/50,
+     LegendSize -> { 1, 1 }/4,
+     PerformanceGoal -> "Quality",
+     PlotLabel -> 
+   Text[Style["Model G with G-Gradient - Slope=-1/50", 
+     plotscale 32]], (*BJD plotscale was 42*)
+     
+  PlotLegend -> { 
+    Style["\*SubscriptBox[\"\[CurlyPhi]\",\"G\"]", plotscale 24],
+          
+    Style["\*SubscriptBox[\"\[CurlyPhi]\",\"X\"]/10", plotscale 24],
+          
+    Style["\*SubscriptBox[\"\[CurlyPhi]\",\"Y\"]", plotscale 24] },
+     PlotRange -> 1/zoom,
+     PlotStyle -> AbsoluteThickness[3] ];
+
+(*
+manipulate = Manipulate[ frame[t], {t,0,T} ]
+Use SWF for a webpage, FLV for YouTube, AVI for Quicktime and \
+Windows.
+*)
+frames = Table[frame[t], {t, 0, T, T/(duration fps)}];
+(*Export[ myname<>".avi", frames, "FrameRate" -> fps]*)
+Export[ 
+ myname <> ".flv", frames, "FrameRate" -> fps]
